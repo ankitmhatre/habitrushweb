@@ -12,5 +12,32 @@
         "destination": "/index.html"
       }
     ]
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "emulators": {
+    "hosting": {
+      "port": 6284
+    },
+    "auth": {
+      "host": "192.168.1.203", 
+      "port": 9099
+    },
+    "functions": {
+      "host": "192.168.1.203", 
+      "port": 5001
+    },
+    "firestore": {
+      "host": "192.168.1.203", 
+      "port": 8080
+    },
+    "ui": {
+      "enabled": true
+    }
+  },
+  "functions": {
+    "source": "functions"
   }
 }
