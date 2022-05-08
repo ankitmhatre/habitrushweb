@@ -4,17 +4,19 @@
   "scripts": {
     "serve": "firebase emulators:start --only functions",
     "shell": "firebase functions:shell",
-    "start": "npm run shell",
+    "start": "kill-port 8080 && kill-port 8085 && kill-port 5001 && firebase emulators:start",
     "deploy": "firebase deploy --only functions",
-    "logs": "firebase functions:log"
+    "logs": "firebase functions:log",
+    "onlyShell": "npm run shell"
   },
   "engines": {
     "node": "16"
   },
   "main": "index.js",
   "dependencies": {
+    "@google-cloud/pubsub": "^2.19.3",
     "firebase-admin": "^10.0.2",
-    "firebase-functions": "^3.18.0"
+    "firebase-functions": "^3.21.0"
   },
   "devDependencies": {
     "firebase-functions-test": "^0.2.0"
