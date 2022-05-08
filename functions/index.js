@@ -217,7 +217,7 @@ exports.onHabitsCreatedForUser = functions.firestore
           endDate - tempHabitStartDate > 0;
           tempHabitStartDate.add(1, "days")
         ) {
-          console.log("createReminderOnDatesWhenCreated",m)
+          console.log("createReminderOnDatesWhenCreated", m);
           createReminderOnDatesWhenCreated.push(m.clone());
         }
         console.log("///////////////////////////////////////////////");
@@ -259,21 +259,20 @@ exports.onHabitsCreatedForUser = functions.firestore
         }
       }
 
+      var createdReminders = [];
+      console.log(
+        "habitDocument.habitReminderFrequency",
+        habitDocument.habitReminderFrequency
+      );
+      console.log(
+        "habitDocument.habitReminderFrequencyDays",
+        habitDocument.habitReminderFrequencyDays
+      );
 
-      var createdReminders = []
-      console.log("habitDocument.habitReminderFrequency", habitDocument.habitReminderFrequency)
-console.log("habitDocument.habitReminderFrequencyDays", habitDocument.habitReminderFrequencyDays)
-
-      createReminderOnDatesWhenCreated.map(createReminderDate=>{
-
-console.log("createReminderDate", createReminderDate)
-
-
-
+      createReminderOnDatesWhenCreated.map((createReminderDate) => {
+        console.log("createReminderDate", createReminderDate);
 
         var shouldCreateReminders = false;
-
-
 
         switch (habitDocument.habitReminderFrequency) {
           case "Everyday":
@@ -290,9 +289,9 @@ console.log("createReminderDate", createReminderDate)
                 "days"
               );
               shouldCreateReminders = differenceInDays >= everyXDays;
-  
+
               console.log("lastCompletedDate", lastCompletedDate);
-             // console.log("currentDateTime", currentDateTimeInLocal);
+              // console.log("currentDateTime", currentDateTimeInLocal);
               console.log(differenceInDays);
               console.log(shouldCreateReminders);
             }
@@ -336,10 +335,8 @@ console.log("createReminderDate", createReminderDate)
                   }
                   break;
               }
-  
-
             });
-  
+
             break;
           case "Monthly":
             console.log("startDate", createReminderDate.date());
@@ -349,58 +346,63 @@ console.log("createReminderDate", createReminderDate)
                 shouldCreateReminders = true;
               }
             });
-  
+
             break;
         }
 
-        console.log("shouldCreateReminders", shouldCreateReminders, createReminderDate);
+        console.log(
+          "shouldCreateReminders",
+          shouldCreateReminders,
+          createReminderDate
+        );
+
+        if (shouldCreateReminders) {
+          createdReminders.push(createReminderDate.clone());
+        }
+      });
+
+      if (createdReminders.length <= 0) {
+        console.log("NO VALID DATES");
+        return;
+      } else {
+        var finalReminderDateTimeLocal =[]
+        
+        createdReminders.map((reminderDate) => {
+          console.log("reminderDate", reminderDate);
 
 
-if(shouldCreateReminders){
-  createdReminders.push(createReminderDate.clone())
-}
 
-
-      })
-
-
-
-      if(createdReminders.length <= 0){
-        console.log("NO VALID DATES")
-        return 
-      }else{
-
-        createdReminders.map(reminderDate =>{
-
-
-
-
-console.log("reminderDate", reminderDate)
-
-
-        })
-
-
-        // startDate.set({ h: 0, m: 0, s: 0 });
-        // var reminders = [];
+   reminderDate.clone().set({ h: 0, m: 0, s: 0 });
   
-        // habitDocument.habitRemindAt.forEach((e) => {
-        //   var newHours = e.split(":");
-        //   console.log("newHours", newHours);
-        //   var totalMinutes = e[0] * 60 + e[1];
-  
-        //   startDate.add(totalMinutes, "m");
-        //   reminders.push(startDate);
-        //   console.log("remindAt Time", startDate);
-        //   startDate.subtract(totalMinutes, "m");
-        // });
+
+        habitDocument.habitRemindAt.forEach((e) => {
+          var newHours = e.split(":").map(e => parseInt(e));
+          console.log("newHours", newHours);
+          console.log("total minutes first ", reminderDate)
+        
+          var totalMinutes = (newHours[0] * 60) + newHours[1];
+console.log("Adding minutes", totalMinutes)
+          reminderDate.add(totalMinutes, "m");
+          finalReminderDateTimeLocal.push(
+            
+            {
+                  completeStatus: false,
+                  createdAt: new Date(),
+                  remindAtInLocalTime:   reminderDate.clone(),
+                }
+          );
+          reminderDate.subtract(totalMinutes, "m");
+        });
+
+        });
+console.log("finalReminderDateTimeLocal", finalReminderDateTimeLocal)
+     
       }
 
-
-  
-
-//      console.log(reminders);
+      //      console.log(reminders);
     }
+
+
     //   return {
     //     completeStatus: false,
     //     createdAt: new Date(),
