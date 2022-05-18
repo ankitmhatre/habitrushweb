@@ -72,33 +72,42 @@ exports.createTasksAllHabitsAllUsers = functions.pubsub
   });
 
 /////////////////////////////////////////
-// exports.onHabitsTasksUpdated = functions.firestore
-//   .document("users/{uid}/habits/{habitId}/tasks/{taskId}")
-//   .onUpdate(async (change, context) => {
-//     var uid = context.params.uid;
-//     var userDocument = await admin
-//       .firestore()
-//       .doc("users/" + uid)
-//       .get();
-//     var token = userDocument.data().token;
+exports.onHabitsTasksUpdated = functions.firestore
+  .document("users/{uid}/habits/{habitId}/reminders/{taskId}")
+  .onWrite(async (change, context) => {
+    var uid = context.params.uid;
+    var userDocument = await admin
+      .firestore()
+      .doc("users/" + uid)
+      .get();
+    var token = userDocument.data().token;
 
-//     var message = {
-//       tokens: [token],
-//       notification: {
-//         title: "Tasks got updated for a new habit",
-//         // body: JSON.stringify(change.after.data().tasks),
-//       },
-//       data: {
-//         tasks: JSON.stringify(change.after.data()),
-//       },
-//     };
+    var hybridHabitReminder= change.after.data();
+    hybridHabitReminder['habitId'] = context.params.habitId;
+    var message = {
+      tokens: token,
+      //       notification: {
+      // title : change.data().habitName,
+      //          body: change.data().remindAtInLocalTime.toDate().toString(),
 
-//     return admin
-//       .messaging()
-//       .sendMulticast(message)
-//       .then((res) => console.log("then", res))
-//       .catch((err) => console.log("catch", err));
-//   });
+      //       },
+      data: {
+        title: change.after.data().habitName,
+        body: change.after.data().remindAtInLocalTime.toDate().toString(),
+        type: "habitReminder",
+        payload: JSON.stringify(hybridHabitReminder),
+      },
+    };
+
+
+
+
+    return admin
+      .messaging()
+      .sendMulticast(message)
+      .then((res) => console.log("onHabitsTasksUpdated:then", res))
+      .catch((err) => console.log("onHabitsTasksUpdated:  catch", err));
+  });
 
 /////////////////////////////////////////
 
@@ -280,8 +289,34 @@ exports.onHabitsCreatedForUser = functions.firestore
             break;
           case "Every x days":
             if (habitDocument.habitLastCompletedAtDate === 0) {
+              var everyXDays = habitDocument.habitReminderFrequencyDays[0];
+
               //new habit
-              shouldCreateReminders = true;
+
+              if (habitStartDate.get("d") == createReminderDate.get("d")) {
+                shouldCreateReminders = true;
+              }
+              console.log(
+                "-----------------------------------------------------------------"
+              );
+              console.log(createReminderDate);
+              var coHab = habitStartDate.clone().set({ h: 0, m: 0, s: 0 });
+              console.log(coHab);
+              console.log(
+                "createReminderDate.diff(coHab, 'd')",
+                createReminderDate.diff(coHab, "d")
+              );
+              console.log("everyXDays)", everyXDays);
+
+              var cond = createReminderDate.diff(coHab, "d") == everyXDays + 1;
+              console.log(cond);
+              console.log(
+                "-----------------------------------------------------------------"
+              );
+
+              if (cond) {
+                shouldCreateReminders = true;
+              }
             } else {
               var everyXDays = habitDocument.habitReminderFrequencyDays[0];
               var differenceInDays = createReminderDate.diff(
@@ -365,43 +400,64 @@ exports.onHabitsCreatedForUser = functions.firestore
         console.log("NO VALID DATES");
         return;
       } else {
-        var finalReminderDateTimeLocal =[]
-        
+        var finalReminderDateTimeLocal = [];
+
         createdReminders.map((reminderDate) => {
           console.log("reminderDate", reminderDate);
 
+          reminderDate.clone().set({ h: 0, m: 0, s: 0 });
 
+          habitDocument.habitRemindAt.forEach((e) => {
+            var newHours = e.split(":").map((e) => parseInt(e));
+            console.log("newHours", newHours);
+            console.log("total minutes first ", reminderDate);
 
-   reminderDate.clone().set({ h: 0, m: 0, s: 0 });
-  
+            var totalMinutes = newHours[0] * 60 + newHours[1];
+            console.log("Adding minutes", totalMinutes);
+            reminderDate.add(totalMinutes, "m");
 
-        habitDocument.habitRemindAt.forEach((e) => {
-          var newHours = e.split(":").map(e => parseInt(e));
-          console.log("newHours", newHours);
-          console.log("total minutes first ", reminderDate)
-        
-          var totalMinutes = (newHours[0] * 60) + newHours[1];
-console.log("Adding minutes", totalMinutes)
-          reminderDate.add(totalMinutes, "m");
-          finalReminderDateTimeLocal.push(
-            
-            {
-                  completeStatus: false,
-                  createdAt: new Date(),
-                  remindAtInLocalTime:   reminderDate.clone(),
-                }
-          );
-          reminderDate.subtract(totalMinutes, "m");
+            var tTime = reminderDate.clone();
+            if (habitDocument.habitCreatedTimeOffset.n) {
+              tTime.add(habitDocument.habitCreatedTimeOffset.m, "m");
+            } else {
+              tTime.subtract(habitDocument.habitCreatedTimeOffset.m, "m");
+            }
+            finalReminderDateTimeLocal.push({
+              habitName: habitDocument.habitName,
+              completeStatus: false,
+              createdAt: new Date(),
+              remindAtInLocalTime: tTime,
+            });
+            reminderDate.subtract(totalMinutes, "m");
+          });
         });
+        console.log("finalReminderDateTimeLocal", finalReminderDateTimeLocal);
 
-        });
-console.log("finalReminderDateTimeLocal", finalReminderDateTimeLocal)
-     
+        try {
+          await admin.firestore().runTransaction(async (t) => {
+            finalReminderDateTimeLocal.forEach((eeach) => {
+              //await db.collection('cities').doc('new-city-id').set(data);
+              var docRefff = admin
+                .firestore()
+                .collection("users")
+                .doc(uid)
+                .collection("habits")
+                .doc(habitId)
+                .collection("reminders")
+                .doc(eeach.remindAtInLocalTime.clone().valueOf().toString());
+
+              t.set(docRefff, eeach);
+            });
+          });
+
+          console.log("Transaction success!");
+        } catch (e) {
+          console.log("Transaction failure:", e);
+        }
       }
 
       //      console.log(reminders);
     }
-
 
     //   return {
     //     completeStatus: false,
